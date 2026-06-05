@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gemnr"
+version = "0.0.1"
+description = "GeM-NR: Geometry-Aware Multi-View Editing for Nonrigid Scene Changes"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+readme = "README.md"
+authors = [
+    { name = "Yaroslava Lochman", email = "lochman@chalmers.se" }
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gemnr"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/README.md",
+  "/pyproject.toml",
+  "/src/gemnr",
+]
