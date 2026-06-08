@@ -102,7 +102,7 @@ if __name__ == "__main__":
     # default_input = "./assets/bike"
     # default_edit_text = "Change the bicycle to a dirt motorbike"
     default_input = "./assets/stone_horse"
-    default_edit_text = "Change the horse statues to a lion statue"
+    default_edit_text = "Change the horse statue to a lion statue"
     default_anchor_idx = 1
     default_seed = 0
     default_output = "./results"
