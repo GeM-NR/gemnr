@@ -36,10 +36,13 @@ gem_nr = GemNR(resolution=512)
 # edit_text_prompt = ...
 # anchor_idx = ...
 
+im_pil_list = [gem_nr.crop_resize(im_pil) for im_pil in im_pil_list]
 out_im_pil_list = gem_nr.edit(im_pil_list, edit_text_prompt, anchor_idx)
 ```
 
-## Demo
+NOTE: you need to provide your Hugging Face token as either environment variable `export HF_TOKEN=...` or extra argument to the class `GemNR(resolution=512, token=...)`.
+
+### Demo
 ```bash
 python run.py
 ```
@@ -54,5 +57,21 @@ python run.py -i "path_to_img1 ... path_to_imgN" -e "Your edit" -a 0
 or
 ```bash
 python run.py -i path_to_img_folder -e "Your edit" -a 0
+```
+See details in [`run.py`](run.py).
+
+## BibTeX
+If you use this work or find it helpful, please consider citing:
+
+```bibtex
+@misc{bengtson2026gemnrgeometryawaremultiviewediting,
+      title={GeM-NR: Geometry-Aware Multi-View Editing for Nonrigid Scene Changes}, 
+      author={Josef Bengtson and Yaroslava Lochman and Fredrik Kahl},
+      year={2026},
+      eprint={2606.05142},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2606.05142}, 
+}
 ```
 
