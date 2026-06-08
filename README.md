@@ -38,3 +38,21 @@ gem_nr = GemNR(resolution=512)
 
 out_im_pil_list = gem_nr.edit(im_pil_list, edit_text_prompt, anchor_idx)
 ```
+
+## Demo
+```bash
+python run.py
+```
+You can also use the same script to run the method on your inputs:
+```bash
+python run.py --interactive
+```
+or
+```bash
+python run.py -i "path_to_img1 ... path_to_imgN" -e "Your edit" -a 0
+```
+or
+```bash
+python run.py -i path_to_img_folder -e "Your edit" -a 0
+```
+
