@@ -1,6 +1,7 @@
 # --- Core ---
 huggingface_hub==0.36.2
 transformers==4.56.1
+xformers==0.0.31
 diffusers==0.37.1
 poselib==2.0.5
 pycolmap==4.0.3

@@ -6,7 +6,6 @@ from gemnr.backbones import ImageEditor
 from gemnr.backbones.flux import FLUX
 from gemnr.core import GemWarper
 
-
 VRAM_GB = torch.cuda.get_device_properties(0).total_memory / 1024**3
 
 
@@ -16,11 +15,13 @@ class GemNR:
         resolution: int,
         anchor_editor: ImageEditor | None = None,
         seed: int = 0,
+        token: str | None = None,
         device: torch.device | None = None,
     ):
         self.H, self.W = resolution, resolution
         self.anchor_editor = anchor_editor
         self.seed = seed
+        self.token = token
         self.device = device or torch.device(
             "cuda" if torch.cuda.is_available() else "cpu"
         )
@@ -41,6 +42,7 @@ class GemNR:
             version=flux_version,
             seed=self.seed,
             device=self.device,
+            token=self.token,
         )
         self.lazy_init_done = True
         return self._backbone_editor
@@ -56,14 +58,15 @@ class GemNR:
 
     def edit(
         self,
-        im_pil_list: list[Image.Image],
+        ims_pil: Image.Image | list[Image.Image],
         edit_text_prompt: str,
         anchor_idx: int = 0,
         edited_anchor_pil: Image.Image | None = None,
     ) -> list[Image.Image]:
-
-        n_imgs = len(im_pil_list)
-        assert n_imgs >= 2, "Number of input images must be at least 2."
+        if isinstance(ims_pil, Image.Image):
+            im_pil_list = [ims_pil]
+        else:
+            im_pil_list = ims_pil
 
         if any(im.size != (self.W, self.H) for im in im_pil_list):
             print(
@@ -71,6 +74,10 @@ class GemNR:
             )
             im_pil_list = [self.crop_resize(im_pil) for im_pil in im_pil_list]
 
+        n_imgs = len(im_pil_list)
+        assert (
+            anchor_idx < n_imgs
+        ), f"Anchor index ({anchor_idx}) is not in the valid range [0, {n_imgs-1}]."
         order = list(range(n_imgs))
         if anchor_idx != 0:
             order[0] = anchor_idx
@@ -90,6 +97,9 @@ class GemNR:
                 im_pil_list[anchor_idx],
                 prompt=edit_text_prompt,
             )
+
+        if n_imgs == 1:
+            return [edited_anchor_pil]
 
         pipeline = GemNRSetPipeline(
             W=self.W,

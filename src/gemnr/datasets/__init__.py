@@ -12,7 +12,6 @@ def get_scenes(subset_type="full_validation_set"):
 
 def load_scenes(dataset, data_subset):
     if dataset is None:
-        # Multi-dataset yaml: load from src/wav3d/datasets/{data_subset}.yaml
         file_path = Path(__file__).parent / f"{data_subset}.yaml"
         with open(file_path) as f:
             scenes = yaml.safe_load(f)
@@ -47,6 +46,7 @@ def get_dataset_fns(dataset_name):
             get_input_folder,
             get_scenes,
         )
+
         get_pose_folder = None
     elif dataset_name == "spinnerf":
         from gemnr.datasets.spinnerf import (
@@ -68,4 +68,6 @@ def get_dataset_resolution(dataset):
     elif dataset == "dreambooth":
         return 512, 512
     else:
-        raise NotImplementedError(f"Resolution for dataset {dataset} is not defined.")
+        raise NotImplementedError(
+            f"Resolution for dataset {dataset} is not defined."
+        )
