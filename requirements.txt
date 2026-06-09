@@ -32,7 +32,3 @@ evo==1.35.2
 
 # RoMa:
 # pip install --no-deps third_parties/RoMa-0.0.1
-
-# --- Evaluation ---
-clip==1.0
-met3r
