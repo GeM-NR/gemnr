@@ -24,8 +24,6 @@ matplotlib==3.10.8
 trimesh==4.11.5
 evo==1.35.2
 
-pillow_heif
-
 # PyTorch:
 # pip install torch==2.7.1 torchvision==0.22.1 --index-url https://download.pytorch.org/whl/cu128
 
@@ -34,3 +32,9 @@ pillow_heif
 
 # RoMa:
 # pip install --no-deps third_parties/RoMa-0.0.1
+
+# --- Optional ---
+# run.py + run_interactive.py
+pillow_heif
+textual
+rich
