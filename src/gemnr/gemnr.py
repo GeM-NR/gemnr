@@ -4,7 +4,8 @@ from torchvision.transforms import ToTensor
 
 from gemnr.backbones import ImageEditor
 from gemnr.backbones.flux import FLUX
-from wav3d.core.wav3d import RoMaEstimator, DA3Estimator
+from gemnr.core.utils.roma import RoMaEstimator
+from gemnr.core.utils.depth_anything import DA3Estimator
 from gemnr.core import GemWarper
 
 VRAM_GB = torch.cuda.get_device_properties(0).total_memory / 1024**3

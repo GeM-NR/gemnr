@@ -66,10 +66,9 @@ def main(args):
         edited_dir = log_dir / "edited_sequence"
         unedited_dir.mkdir(parents=True, exist_ok=True)
         edited_dir.mkdir(parents=True, exist_ok=True)
-        for i, (in_im, out_im, im_path) in enumerate(
-            zip(im_pil_list, out_im_pil_list, im_paths)
+        for i, (in_im, out_im, im_name) in enumerate(
+            zip(im_pil_list, out_im_pil_list, im_names)
         ):
-            im_name = Path(im_path).stem
             in_im.save(unedited_dir / f"{i:04d}_{im_name}.jpg")
             out_im.save(edited_dir / f"{i:04d}_{im_name}.jpg")
         print(f"Saved to {str(log_dir)}")

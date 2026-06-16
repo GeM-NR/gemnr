@@ -11,6 +11,7 @@
 ## Installation
 The code development was done with python 3.13.5. Install the following packages to re-create our environment:
 ```bash
+
 pip install -r requirements.txt
 
 # Torch
@@ -24,7 +25,11 @@ pip install --no-deps -e third_parties/RoMa-0.0.1
 
 # GeM-NR
 pip install -e .
+
+# Additional dependencies for 3DGS generation with AnySplat (Optional)
+pip install -r requirements_anysplat.txt
 ```
+
 
 ## Usage
 ```python
@@ -60,6 +65,10 @@ python run.py -i path_to_img_folder -e "Your edit" -a 0
 ```
 See details in [`run.py`](run.py).
 
+For running [AnySplat](https://arxiv.org/abs/2505.23716) to generate 3DGS from edited sequence use e.g.:
+```bash
+python third_parties/AnySplat/run_anysplat.py --image_folder ./results/change_the_horse_statue_to_a_lion_statue_without_a_saddle/edited_sequence 
+```
 ## BibTeX
 If you use this work or find it helpful, please consider citing:
 
