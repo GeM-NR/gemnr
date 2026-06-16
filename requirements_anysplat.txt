@@ -3,5 +3,5 @@ sk-video
 dacite
 lightning
 torch_scatter==2.1.2
-https://github.com/nerfstudio-project/gsplat/releases/download/v1.4.0/gsplat-1.4.0%2Bpt22cu121-cp310-cp310-linux_x86_64.whl
+gsplat
 colorspacious
