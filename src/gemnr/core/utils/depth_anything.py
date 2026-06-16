@@ -22,7 +22,7 @@ from gemnr.core.utils.rasterization import (
 )
 
 
-class DepthUtils_DA3:
+class DA3Estimator:
     def __init__(
         self,
         weights: str = "DA3NESTED-GIANT-LARGE",

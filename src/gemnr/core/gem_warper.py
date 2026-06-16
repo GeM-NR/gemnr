@@ -6,7 +6,7 @@ from torchvision.transforms import ToTensor
 from PIL import Image
 
 from .utils.roma import RoMaEstimator
-from .utils.depth_anything import DepthUtils_DA3
+from .utils.depth_anything import DA3Estimator
 from .utils.geometry import relpose_from_absolute
 from .utils.basic_processing import (
     identify_unedited_regions,
@@ -34,7 +34,16 @@ class GemWarper:
         raster_min_size2_percent: float = 0.01
         raster_erode_radius_percent: float = 0.01
 
-    def __init__(self, H, W, device="cuda", cfg: Cfg | None = None, **kwargs):
+    def __init__(
+        self,
+        H,
+        W,
+        device="cuda",
+        cfg: Cfg | None = None,
+        da3_estimator: DA3Estimator | None = None,
+        roma_estimator: RoMaEstimator | None = None,
+        **kwargs,
+    ):
         self.H = H
         self.W = W
         self.device = device
@@ -48,19 +57,25 @@ class GemWarper:
         H14 = self.H // 14 * 14
 
         # Setup DA3
-        self.DA3 = DepthUtils_DA3(
-            weights="DA3NESTED-GIANT-LARGE-1.1",
-            width=W14,
-            height=H14,
-            device=self.device,
-        )
+        if da3_estimator:
+            self.DA3 = da3_estimator
+        else:
+            self.DA3 = DA3Estimator(
+                weights="DA3NESTED-GIANT-LARGE-1.1",
+                width=W14,
+                height=H14,
+                device=self.device,
+            )
 
         # Setup RoMa
-        self.roma = RoMaEstimator(
-            H=H14,
-            W=W14,
-            device=self.device,
-        )
+        if roma_estimator:
+            self.roma = roma_estimator
+        else:
+            self.roma = RoMaEstimator(
+                H=H14,
+                W=W14,
+                device=self.device,
+            )
 
     def warp_using_DA3(
         self,
@@ -129,8 +144,6 @@ class GemWarper:
             intrinsics=intrinsics,
             extrinsics=extrinsics,
         )
-        # preds.processed_images[1] = np.array(edited_object1_pil)
-        # pose_idxs = [0, 0, 1]; idxs_unedited = [0, 2]; idxs_edited = [1]
 
         if save_intermediate_dirpath is not None:
             from pathlib import Path
@@ -197,6 +210,15 @@ class GemWarper:
             masked2_pil = tensor_to_pil(masked2_tensor)
         else:
             masked2_pil = None
+
+        if save_intermediate_dirpath is not None:
+            warped2_pil.save(
+                Path(save_intermediate_dirpath) / "warped.png"
+            )
+            if masked2_pil:
+                masked2_pil.save(
+                    Path(save_intermediate_dirpath) / "masked.png"
+                )
 
         return warped2_pil, masked2_pil
 

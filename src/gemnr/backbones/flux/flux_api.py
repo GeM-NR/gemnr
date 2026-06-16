@@ -49,6 +49,7 @@ class FLUX(ImageEditor):
             self.laten_num_channels = 16
             self.latent_H = 128
             self.latent_W = 128
+            self.guidance_scale = 2.5
         elif self.version.startswith("flux2_klein"):
             n_params = 9 if self.version == "flux2_klein" else 4
             self.pipe = Flux2KleinPipeline.from_pretrained(
@@ -62,6 +63,7 @@ class FLUX(ImageEditor):
                 int(H_inp) // (vae_scale_factor * 2),
                 int(W_inp) // (vae_scale_factor * 2),
             )
+            self.guidance_scale = 0.0
         self.pipe.to(self.device)
         self.set_seed(self.seed)
         self.initialized = True
