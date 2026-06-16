@@ -61,13 +61,16 @@ def main(args):
             .split(" ")[:10]
         )
         log_dir = Path(f"{output_folder}/{edit_id}")
-        Path(log_dir).mkdir(parents=True, exist_ok=True)
-        for in_im, out_im, im_path in zip(
-            im_pil_list, out_im_pil_list, im_paths
+        unedited_dir = log_dir / "unedited_sequence"
+        edited_dir = log_dir / "edited_sequence"
+        unedited_dir.mkdir(parents=True, exist_ok=True)
+        edited_dir.mkdir(parents=True, exist_ok=True)
+        for i, (in_im, out_im, im_path) in enumerate(
+            zip(im_pil_list, out_im_pil_list, im_paths)
         ):
             im_name = Path(im_path).stem
-            out_im.save(log_dir / f"edited_{im_name}.jpg")
-            in_im.save(log_dir / f"unedited_{im_name}.jpg")
+            in_im.save(unedited_dir / f"{i:04d}_{im_name}.jpg")
+            out_im.save(edited_dir / f"{i:04d}_{im_name}.jpg")
         print(f"Saved to {str(log_dir)}")
 
         if not interactive:

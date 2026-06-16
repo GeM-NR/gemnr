@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "anysplat"
+version = "0.0.0"
+description = "AnySplat"
+readme = "README.md"
+requires-python = ">=3.9, <=3.14"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Your Name" }]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/anysplat"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/README.md",
+  "/pyproject.toml",
+  "/src/anysplat",
+]
