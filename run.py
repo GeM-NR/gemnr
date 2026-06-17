@@ -18,7 +18,7 @@ def main(args):
         GemNREditingApp().run(inline=True)
     else:
         inputs = args.input
-        anchor_input_ref = args.anchor_input_ref
+        input_ref = args.input_ref
         edit_text_prompt = args.edit_text
         anchor_idx = args.anchor_idx
         seed = args.seed
@@ -38,12 +38,10 @@ def main(args):
         # Gathering inputs
         im_pil_list, im_names = input_to_imgs(inputs)
         im_pil_list = [gem_nr.crop_resize(im_pil) for im_pil in im_pil_list]
-        anchor_cond_pil = (
+        reference_im_pil = (
             None
-            if not anchor_input_ref
-            else gem_nr.crop_resize(
-                input_to_imgs(anchor_input_ref)[0][0]
-            )
+            if not input_ref
+            else gem_nr.crop_resize(input_to_imgs(input_ref)[0][0])
         )
 
         # Editing
@@ -51,7 +49,7 @@ def main(args):
             im_pil_list,
             edit_text_prompt=edit_text_prompt,
             anchor_idx=anchor_idx,
-            anchor_cond_pil=anchor_cond_pil,
+            reference_im_pil=reference_im_pil,
         )
 
         # Logging
@@ -62,23 +60,23 @@ def main(args):
             .split(" ")[:20]
         )
         log_dir = Path(f"{output_folder}/{edit_id}")
-        unedited_dir = log_dir / "unedited_sequence"
-        edited_dir = log_dir / "edited_sequence"
-        unedited_dir.mkdir(parents=True, exist_ok=True)
-        edited_dir.mkdir(parents=True, exist_ok=True)
-        for i, (in_im, out_im, im_name) in enumerate(
-            zip(im_pil_list, out_im_pil_list, im_names)
+        Path(log_dir / "edited_sequence").mkdir(parents=True, exist_ok=True)
+        Path(log_dir / "unedited_sequence").mkdir(parents=True, exist_ok=True)
+        for in_im, out_im, im_name in zip(
+            im_pil_list, out_im_pil_list, im_names
         ):
-            in_im.save(unedited_dir / f"{i:04d}_{im_name}.jpg")
-            out_im.save(edited_dir / f"{i:04d}_{im_name}.jpg")
+            out_im.save(log_dir / "edited_sequence" / f"{im_name}.jpg")
+            in_im.save(log_dir / "unedited_sequence" / f"{im_name}.jpg")
+        
+        if reference_im_pil is not None:
+            reference_im_pil.save(log_dir / "reference.jpg")
         print(f"Saved to {str(log_dir)}")
 
 
 def input_to_imgs(inputs: str) -> list[Image.Image]:
-    img_suffixes = [".jpg", ".jpeg", ".png", ".heic"]
-    if " " in inputs or any(
-        [inputs.lower().endswith(s) for s in img_suffixes]
-    ):
+    web_preffixes = ("http://", "https://")
+    img_suffixes = (".jpg", ".jpeg", ".png", ".heic")
+    if " " in inputs or inputs.lower().startswith(web_preffixes) or inputs.lower().endswith(img_suffixes):
         if inputs.startswith("[") and inputs.endswith("]"):
             inputs = inputs[1:-1]
         im_paths = inputs.split(",")
@@ -99,7 +97,7 @@ def input_to_imgs(inputs: str) -> list[Image.Image]:
 
     im_pil_list = []
     for im_path in im_paths:
-        if im_path.lower().startswith(("http://", "https://")):
+        if im_path.lower().startswith(web_preffixes):
             response = requests.get(im_path)
             response.raise_for_status()
             img_data = BytesIO(response.content)
@@ -138,7 +136,7 @@ if __name__ == "__main__":
         "-c",
         "--anchor-input-ref",
         type=str,
-        help="(optional) Path to a reference image for an anchor edit",
+        help="(optional) Path to a reference image",
     )
     parser.add_argument(
         "-e",

@@ -12,7 +12,7 @@ from rich.console import Console
 from textual import on, work
 from textual.app import App, ComposeResult
 from textual.containers import Vertical, Container
-from textual.widgets import Input, Button, Log, Label
+from textual.widgets import Input, Button, Log, Label, Checkbox
 
 import gemnr.gemnr as gemnr_api
 
@@ -37,27 +37,30 @@ class GemNREditingApp(App):
     #token-full, #output_folder-full {
         column-span: 3;
     }
-    #edit_text_prompt-full, #inputs-full, #anchor_input_ref-full, #output {
+    #edit_text_prompt-full, #inputs-full, #input_ref-full, #output {
         column-span: 6;
     }
-    #quit {
-        column-span: 5;
+    #anysplat {
+        column-span: 4;
     }
     """
 
-    default_input = "./assets/stone_horse"
-    default_edit_text = "Change the horse statue to a lion statue"
-    default_anchor_idx = 1
+    default_input = "./assets/bed"
+    default_edit_text = "Change the bed and the nightstands"
+    default_reference = (
+        "https://images.unsplash.com/photo-1680210849951-34d1a56eb7aa"
+    )
+    default_anchor_idx = 0
     default_seed = 0
     default_output = "./results"
     default_resolution = 512
     default_token = os.environ.get("HF_TOKEN", "")
     gemnr_initialized = False
     gem_nr = None
+    anysplat = None
 
     BINDINGS = [
         ("ctrl+c", "quit", "Quit"),
-        ("enter", "run", "Run"),
         ("tab", "focus_next", "Next"),
         ("shift+tab", "focus_previous", "Previous"),
         ("down", "focus_next", "Next"),
@@ -102,10 +105,12 @@ class GemNREditingApp(App):
                 id="edit_text_prompt",
             )
             yield labeled_input(
-                label="(optional) Path to a reference image for an anchor edit",
-                id="anchor_input_ref",
+                value=self.default_reference,
+                label="(optional) Path to a reference image",
+                id="input_ref",
             )
             yield Button("Edit images", id="run", variant="primary")
+            yield Checkbox("Run AnySplat", id="anysplat", value=False)
             yield Button("Quit", id="quit", variant="warning")
             yield Log(id="output", auto_scroll=True)
 
@@ -113,6 +118,10 @@ class GemNREditingApp(App):
         self.curr_worker = None
         input_widget = self.query_one("#inputs")
         input_widget.focus()
+
+    def on_key(self, event) -> None:
+        if event.key == "enter":
+            self.query_one("#run", Button).press()
 
     @on(Button.Pressed, "#run")
     async def handle_run(self) -> None:
@@ -122,11 +131,11 @@ class GemNREditingApp(App):
         resolution = self.query_one("#resolution", Input).value
         seed = self.query_one("#seed", Input).value
         inputs = self.query_one("#inputs", Input).value
-        anchor_input_ref = self.query_one("#anchor_input_ref", Input).value
+        input_ref = self.query_one("#input_ref", Input).value
         edit_text_prompt = self.query_one("#edit_text_prompt", Input).value
         log = self.query_one("#output", Log)
         log.clear()
-        with capture_all(self, self.query_one(Log)) as console:
+        with capture_all(self, self.query_one(Log)):
             try:
                 self._check_inputs(
                     inputs,
@@ -139,48 +148,70 @@ class GemNREditingApp(App):
                 )
 
                 self.query_one("#run", Button).disabled = True
+                self.set_focus(None)
 
                 resolution = int(resolution)
                 seed = int(seed)
                 anchor_idx = int(anchor_idx)
-                self.curr_worker = self._gemnr_setup(resolution=resolution, seed=seed, token=token)
+                self.curr_worker = self._gemnr_setup(
+                    resolution=resolution, seed=seed, token=token
+                )
                 await self.curr_worker.wait()
-                
-                im_pil_list, im_names = self._gemnr_prepare_inputs(inputs=inputs)
-                anchor_cond_pil = None if not anchor_input_ref else self._gemnr_prepare_inputs(inputs=anchor_input_ref)[0][0]
-                
+                self.curr_worker = None
+
+                im_pil_list, im_names = self._gemnr_prepare_inputs(
+                    inputs=inputs
+                )
+                reference_pil = (
+                    None
+                    if not input_ref
+                    else self._gemnr_prepare_inputs(inputs=input_ref)[
+                        0
+                    ][0]
+                )
                 self.curr_worker = self._gemnr_run_once(
                     im_pil_list=im_pil_list,
                     edit_text_prompt=edit_text_prompt,
                     anchor_idx=anchor_idx,
-                    anchor_cond_pil=anchor_cond_pil,
+                    reference_pil=reference_pil,
                     output_folder=output_folder,
                 )
                 out_im_pil_list = await self.curr_worker.wait()
                 self.curr_worker = None
-                self.query_one("#run", Button).disabled = False
-                
+
+                edit_id = "_".join(
+                    edit_text_prompt.lower()
+                    .replace(",", "")
+                    .replace(".", "")
+                    .split(" ")[:20]
+                )
                 self._gemnr_save_results(
                     im_pil_list=im_pil_list,
                     out_im_pil_list=out_im_pil_list,
                     im_names=im_names,
-                    edit_text_prompt=edit_text_prompt,
+                    edit_id=edit_id,
                     output_folder=output_folder,
                     seed=seed,
+                    reference_im=reference_pil,
                 )
+                if self.query_one("#anysplat", Checkbox).value:
+                    self.curr_worker = self._anysplat_run(output_folder, edit_id)
+                    await self.curr_worker.wait()
+                self.curr_worker = None
+                self.query_one("#run", Button).disabled = False
+                self.query_one("#inputs").focus()
 
-            except Exception as e:
+            except Exception:
                 traceback.print_exc()
                 self.query_one("#run", Button).disabled = False
                 return
-
 
     @on(Button.Pressed, "#quit")
     def handle_quit(self) -> None:
         if self.curr_worker:
             self.curr_worker.cancel()
         self.exit()
-    
+
     def _check_inputs(self, *inputs_str) -> bool:
         if any(map(lambda s: s == "", inputs_str)):
             raise ValueError("Fill-in the inputs!")
@@ -208,7 +239,7 @@ class GemNREditingApp(App):
         im_pil_list: list[Image.Image],
         edit_text_prompt: str,
         anchor_idx: int,
-        anchor_cond_pil: Image.Image | None,
+        reference_pil: Image.Image | None,
         output_folder: str,
     ):
         print("Editing...")
@@ -216,7 +247,7 @@ class GemNREditingApp(App):
             im_pil_list,
             edit_text_prompt=edit_text_prompt,
             anchor_idx=anchor_idx,
-            anchor_cond_pil=anchor_cond_pil
+            reference_pil=reference_pil,
         )
         return out_im_pil_list
 
@@ -226,29 +257,42 @@ class GemNREditingApp(App):
             self.gem_nr.crop_resize(im_pil) for im_pil in im_pil_list
         ]
         return im_pil_list, im_names
-    
-    def _gemnr_save_results(self,
+
+    def _gemnr_save_results(
+        self,
         im_pil_list: list[Image.Image],
         out_im_pil_list: list[Image.Image],
         im_names: list[str],
-        edit_text_prompt: str,
+        edit_id: str,
         output_folder: str,
         seed: int,
+        reference_im: Image.Image | None = None,
     ):
-        edit_id = "_".join(
-            edit_text_prompt.lower()
-            .replace(",", "")
-            .replace(".", "")
-            .split(" ")[:20]
-        )
         log_dir = Path(f"{output_folder}/{edit_id}")
-        Path(log_dir).mkdir(parents=True, exist_ok=True)
+        Path(log_dir / "edited_sequence").mkdir(parents=True, exist_ok=True)
+        Path(log_dir / "unedited_sequence").mkdir(parents=True, exist_ok=True)
         for in_im, out_im, im_name in zip(
             im_pil_list, out_im_pil_list, im_names
         ):
-            out_im.save(log_dir / f"edited{seed:02d}_{im_name}.jpg")
-            in_im.save(log_dir / f"unedited_{im_name}.jpg")
+            out_im.save(log_dir / "edited_sequence" / f"{im_name}.jpg")
+            in_im.save(log_dir / "unedited_sequence" / f"{im_name}.jpg")
+
+        if reference_im is not None:
+            reference_im.save(log_dir / "reference.jpg")
         print(f"Saved to: {output_folder}/{edit_id}")
+    
+    @work(thread=True)
+    def _anysplat_run(self, output_folder: str, edit_id: str):
+        from third_parties.AnySplat.run_anysplat import load_anysplat, run_anysplat
+
+        if self.anysplat is None:
+            print("Loading AnySplat...")
+            self.anysplat = load_anysplat()
+        
+        print("Running AnySplat...")
+        edited_sequence_path = f"{output_folder}/{edit_id}/edited_sequence"
+        run_anysplat(edited_sequence_path, model=self.anysplat)
+        print(f"Saved to: {output_folder}/{edit_id}/edited_sequence/AnySplat")
 
 
 def labeled_input(
@@ -317,9 +361,12 @@ def capture_all(app, log):
 
 
 def input_to_imgs(inputs: str) -> list[Image.Image]:
-    img_suffixes = [".jpg", ".jpeg", ".png", ".heic"]
-    if " " in inputs or any(
-        [inputs.lower().endswith(s) for s in img_suffixes]
+    web_preffixes = ("http://", "https://")
+    img_suffixes = (".jpg", ".jpeg", ".png", ".heic")
+    if (
+        " " in inputs
+        or inputs.lower().startswith(web_preffixes)
+        or inputs.lower().endswith(img_suffixes)
     ):
         if inputs.startswith("[") and inputs.endswith("]"):
             inputs = inputs[1:-1]
@@ -341,7 +388,7 @@ def input_to_imgs(inputs: str) -> list[Image.Image]:
 
     im_pil_list = []
     for im_path in im_paths:
-        if im_path.lower().startswith(("http://", "https://")):
+        if im_path.lower().startswith(web_preffixes):
             response = requests.get(im_path)
             response.raise_for_status()
             img_data = BytesIO(response.content)

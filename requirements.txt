@@ -34,7 +34,7 @@ evo==1.35.2
 # pip install --no-deps third_parties/RoMa-0.0.1
 
 # --- Optional ---
-# run.py + run_interactive.py
+# For running demo: `python run.py`
 pillow_heif
 textual
 rich

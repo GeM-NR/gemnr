@@ -9,7 +9,7 @@
 </p>
 
 ## Installation
-The code development was done with python 3.13.5. Install the following packages to re-create our environment:
+The code development was done with python 3.13. Install the following packages to re-create our environment:
 ```bash
 
 pip install -r requirements.txt
@@ -25,9 +25,6 @@ pip install --no-deps -e third_parties/RoMa-0.0.1
 
 # GeM-NR
 pip install -e .
-
-# Additional dependencies for 3DGS generation with AnySplat (Optional)
-pip install -r requirements_anysplat.txt
 ```
 
 
@@ -45,7 +42,10 @@ im_pil_list = [gem_nr.crop_resize(im_pil) for im_pil in im_pil_list]
 out_im_pil_list = gem_nr.edit(im_pil_list, edit_text_prompt, anchor_idx)
 ```
 
-NOTE: you need to provide your Hugging Face token as either environment variable `export HF_TOKEN=...` or extra argument to the class `GemNR(resolution=512, token=...)`.
+NOTE:
+- you need to provide your Hugging Face token as either environment variable `export HF_TOKEN=...` or extra argument to the class `GemNR(resolution=512, token=...)`.
+- if needed, change the caching paths beforehand:
+`export TORCH_HOME=...` and `export HF_HOME=...`.
 
 ### Demo
 ```bash
@@ -53,22 +53,36 @@ python run.py
 ```
 You can also use the same script to run the method on your inputs:
 ```bash
-python run.py --interactive
+python run.py -i "path_to_img1 ... path_to_imgN" -e "Your edit" -a anchor_image_idx
 ```
 or
 ```bash
-python run.py -i "path_to_img1 ... path_to_imgN" -e "Your edit" -a 0
-```
-or
-```bash
-python run.py -i path_to_img_folder -e "Your edit" -a 0
+python run.py -i path_to_img_folder -e "Your edit" -a anchor_image_idx
 ```
 See details in [`run.py`](run.py).
 
-For running [AnySplat](https://arxiv.org/abs/2505.23716) to generate 3DGS from edited sequence use e.g.:
+### Interactive mode
+You can run multiple edits on different sequences in interactive mode:
+```bash
+python run.py --interactive
+```
+
+### Generating edited 3DGS with [AnySplat](https://arxiv.org/abs/2505.23716)
+Install and setup additional dependencies:
+```bash
+pip install -r requirements_anysplat.txt
+cd ./third_parties/AnySplat/src/anysplat/model/encoder/backbone/croco/curope
+python setup.py build_ext --inplace
+```
+
+Run e.g.:
 ```bash
 python third_parties/AnySplat/run_anysplat.py --image_folder ./results/change_the_horse_statue_to_a_lion_statue_without_a_saddle/edited_sequence 
 ```
+or check `Run AnySplat` checkbox in the interactive mode:
+
+<img src="https://ylochman.github.io/papers/gemnr/demo.png">
+
 ## BibTeX
 If you use this work or find it helpful, please consider citing:
 
