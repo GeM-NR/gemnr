@@ -41,7 +41,7 @@ class GemNR:
         if not self._backbone_editor:
             self.initialize_models()
         return self._backbone_editor
-    
+
     def initialize_models(self):
         W14 = self.W // 14 * 14
         H14 = self.H // 14 * 14
@@ -89,7 +89,7 @@ class GemNR:
         ims_pil: Image.Image | list[Image.Image],
         edit_text_prompt: str,
         anchor_idx: int = 0,
-        anchor_cond_pil: Image.Image | None = None,
+        reference_pil: Image.Image | None = None,
         edited_anchor_pil: Image.Image | None = None,
         save_intermediate_dirpath: str | None = None,
     ) -> list[Image.Image]:
@@ -103,12 +103,12 @@ class GemNR:
                 "Resizing and cropping input images to fit the model's expected resolution."
             )
             im_pil_list = [self.crop_resize(im_pil) for im_pil in im_pil_list]
-        
-        if anchor_cond_pil and anchor_cond_pil.size != (self.W, self.H):
+
+        if reference_pil and reference_pil.size != (self.W, self.H):
             print(
                 "Resizing and cropping anchor conditioning image to fit the model's expected resolution."
             )
-            anchor_cond_pil = self.crop_resize(anchor_cond_pil)
+            reference_pil = self.crop_resize(reference_pil)
 
         n_imgs = len(im_pil_list)
         assert (
@@ -126,12 +126,18 @@ class GemNR:
             anchor_editor = self.anchor_editor
         else:
             anchor_editor = self.backbone_editor
-        
+
         if not edited_anchor_pil:
             anchor_pil = im_pil_list[anchor_idx]
-            prompt_end = "" if not anchor_cond_pil else " as shown in the second image." 
+            prompt_end = (
+                "" if not reference_pil else " as shown in the second image."
+            )
             _, edited_anchor_pil = anchor_editor(
-                anchor_pil if not anchor_cond_pil else [anchor_pil, anchor_cond_pil],
+                (
+                    anchor_pil
+                    if not reference_pil
+                    else [anchor_pil, reference_pil]
+                ),
                 prompt=edit_text_prompt + prompt_end,
             )
 
@@ -151,6 +157,7 @@ class GemNR:
             [im_pil_list[i] for i in order],
             edited1_pil=edited_anchor_pil,
             prompt=edit_text_prompt,
+            reference_pil=reference_pil,
             save_intermediate_dirpath=save_intermediate_dirpath,
         )
 
@@ -166,16 +173,26 @@ class GemNRSetPipeline:
         self.editor_model = editor_model
         self.gem_warper = GemWarper(**kwargs)
         self.cfg = self.gem_warper.cfg
-        self.prompt_extra = "The suggested appearance is in the second image. Stick to this change, but refine it to keep consistency with respect to the first image."
+        self.prompt_extra = "The suggested appearance is in the last image. Stick to this change, but refine it to keep consistency with respect to the first image."
 
     def edit(
-        self, img_pil_list, prompt, edited1_pil, save_intermediate_dirpath=None
+        self,
+        img_pil_list,
+        prompt,
+        edited1_pil,
+        reference_pil=None,
+        save_intermediate_dirpath=None,
     ):
         """Edit each target view conditioned on the anchor image (first in list) and its edit."""
         img1_pil = img_pil_list[0]
         target_views = img_pil_list[1:]
 
-        full_prompt = f"{prompt}. {self.prompt_extra}"
+        if reference_pil:
+            full_prompt = (
+                f"{prompt} as shown in the second image. {self.prompt_extra}"
+            )
+        else:
+            full_prompt = f"{prompt}. {self.prompt_extra}"
         prompts = [prompt] + [full_prompt] * (len(target_views) - 1)
         inputs = []
 
@@ -187,8 +204,8 @@ class GemNRSetPipeline:
                 save_intermediate_dirpath=save_intermediate_dirpath,
             )
 
-            if self.cfg.force_unedited_regions:
-                inputs.append([img2_pil, masked2_pil, warped2_pil])
+            if reference_pil:
+                inputs.append([img2_pil, reference_pil, warped2_pil])
             else:
                 inputs.append([img2_pil, warped2_pil])
 
