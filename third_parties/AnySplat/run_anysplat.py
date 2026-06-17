@@ -1,19 +1,11 @@
 from pathlib import Path
 import torch
 import os
-import sys
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-_ROOT = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(_ROOT / "src"))
-sys.path.insert(0, str(_ROOT / "third_parties" / "RoMa"))
-sys.path.insert(0, str(_ROOT / "third_parties" / "DepthAnything3" / "src"))
-sys.path.insert(0, str(_ROOT / "third_parties" / "PR-IQA" / "submodules" / "vggt"))
-
 import time
 from PIL import Image
+import sys
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from src.anysplat.misc.image_io import save_interpolated_video, save_image
 from src.anysplat.model.ply_export import export_ply
 from src.anysplat.model.model.anysplat import AnySplat
@@ -44,27 +36,7 @@ def run_trajectory(
             save_image(frame, os.path.join(frames_dir, f"{idx:04d}.png"))
 
 
-
-def main():
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--image_folder", type=str, required=True, help="Path to folder containing input images")
-    parser.add_argument("--resize_input", action="store_true", default=False, help="Resize input images to 576x576 before feeding to AnySplat")
-    traj_group = parser.add_mutually_exclusive_group()
-    traj_group.add_argument("--spherical", action="store_true", default=True, help="Use spherical trajectory")
-    traj_group.add_argument("--interpolated", action="store_true", default=False, help="Use interpolated input poses")
-    traj_group.add_argument("--both", action="store_true", default=False, help="Run both spherical and interpolated trajectories separately")
-    args = parser.parse_args()
-
-    # default to spherical if nothing specified
-    if not args.interpolated and not args.both:
-        args.spherical = True
-
-    image_folder = args.image_folder
-    output_folder = os.path.join(image_folder, "AnySplat")
-
-    os.makedirs(output_folder, exist_ok=True)
-
+def load_anysplat():
     # Load the model from Hugging Face
     model = AnySplat.from_pretrained("lhjiang/anysplat")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -72,10 +44,23 @@ def main():
     model.eval()
     for param in model.parameters():
         param.requires_grad = False
+    return model
 
+def run_anysplat(image_folder, resize_input=False, spherical=True, interpolated=False, both=False, model=None):
+    # default to spherical if nothing specified
+    if not interpolated and not both:
+        spherical = True
+
+    output_folder = os.path.join(image_folder, "AnySplat")
+    os.makedirs(output_folder, exist_ok=True)
+
+    if model is None:
+        model = load_anysplat()
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # Load Images
     image_paths = sorted([os.path.join(image_folder, f) for f in os.listdir(image_folder) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
-    if args.resize_input:
+    if resize_input:
         import tempfile
         _tmp_dir = tempfile.mkdtemp()
         resized_paths = []
@@ -112,13 +97,23 @@ def main():
         decoder=model.decoder,
     )
 
-    if args.both:
+    if both:
         run_trajectory(use_spherical=True, **traj_kwargs)
         run_trajectory(use_spherical=False, **traj_kwargs)
     else:
-        run_trajectory(use_spherical=args.spherical, **traj_kwargs)
+        run_trajectory(use_spherical=spherical, **traj_kwargs)
 
     export_ply(gaussians.means[0], gaussians.scales[0], gaussians.rotations[0], gaussians.harmonics[0], gaussians.opacities[0], Path(output_folder) / "edited_gaussian.ply")
 
+
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--image_folder", type=str, required=True, help="Path to folder containing input images")
+    parser.add_argument("--resize_input", action="store_true", default=False, help="Resize input images to 576x576 before feeding to AnySplat")
+    traj_group = parser.add_mutually_exclusive_group()
+    traj_group.add_argument("--spherical", action="store_true", default=True, help="Use spherical trajectory")
+    traj_group.add_argument("--interpolated", action="store_true", default=False, help="Use interpolated input poses")
+    traj_group.add_argument("--both", action="store_true", default=False, help="Run both spherical and interpolated trajectories separately")
+    args = parser.parse_args()
+    run_anysplat(args.image_folder, args.resize_input, args.spherical, args.interpolated, args.both)
