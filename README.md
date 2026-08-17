@@ -1,5 +1,5 @@
 # GeM-NR: Geometry-Aware Multi-View Editing for Nonrigid Scene Changes
-
+🎉 **Accepted to BMVC 2026!**
 <p align="center">
     <a href=https://gem-nr.github.io>project page</a> · 
     <a href=https://arxiv.org/abs/2606.05142>paper</a><br><br>
