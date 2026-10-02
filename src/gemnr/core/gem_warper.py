@@ -85,7 +85,14 @@ class GemWarper:
         mask1_pil=None,
         mask2_pil=None,
         save_intermediate_dirpath=None,
+        intrinsics=None,
+        extrinsics=None,
     ):
+        """
+        intrinsics/extrinsics: optional normalized (3, 3, 3) intrinsics and world-to-camera
+        (3, 3|4, 4) extrinsics for (img1, edited1, img2). If given, DA3 pose estimation
+        and pose refinement are skipped.
+        """
         depth_conf_thr = self.cfg.render_depth_conf_thr
         depth_conf_thr_percentile = self.cfg.render_depth_conf_thr_percentile
         depth_ensure_thresh_percentile = (
@@ -118,27 +125,29 @@ class GemWarper:
             edited_object1_pil = edited1_pil.copy()
             object2_pil = img2_pil.copy()
 
-        # Extract cameras
-        preds = self.DA3.run_DepthAnything3([object1_pil, object2_pil])
+        if intrinsics is None or extrinsics is None:
+            # Extract cameras
+            preds = self.DA3.run_DepthAnything3([object1_pil, object2_pil])
 
-        # Refine cameras
-        if refine_poses:
-            object1_tensor = ToTensor()(object1_pil).to(self.device)
-            object2_tensor = ToTensor()(object2_pil).to(self.device)
-            preds.extrinsics = self.refine_extrinsics_using_roma(
-                object1_tensor.unsqueeze(0),
-                object2_tensor.unsqueeze(0),
-                extrinsics=preds.extrinsics,
-                intrinsics=preds.intrinsics,
-                max_epipolar_error=relpose_max_epipolar_error,
-                certainty_threshold=relpose_certainty_threshold,
-                min_inliers_for_success=relpose_min_inliers_for_success,
+            # Refine cameras
+            if refine_poses:
+                object1_tensor = ToTensor()(object1_pil).to(self.device)
+                object2_tensor = ToTensor()(object2_pil).to(self.device)
+                preds.extrinsics = self.refine_extrinsics_using_roma(
+                    object1_tensor.unsqueeze(0),
+                    object2_tensor.unsqueeze(0),
+                    extrinsics=preds.extrinsics,
+                    intrinsics=preds.intrinsics,
+                    max_epipolar_error=relpose_max_epipolar_error,
+                    certainty_threshold=relpose_certainty_threshold,
+                    min_inliers_for_success=relpose_min_inliers_for_success,
+                )
+
+            # Extract all depths while forcing cameras
+            intrinsics, extrinsics = self.DA3.propagate_cameras(
+                preds, pose_idxs_from=[0, 1], pose_idxs_to=[0, 0, 1]
             )
 
-        # Extract all depths while forcing cameras
-        intrinsics, extrinsics = self.DA3.propagate_cameras(
-            preds, pose_idxs_from=[0, 1], pose_idxs_to=[0, 0, 1]
-        )
         preds = self.DA3.run_DepthAnything3(
             img_pil_list=[object1_pil, edited_object1_pil, object2_pil],
             intrinsics=intrinsics,

@@ -1,3 +1,4 @@
+import numpy as np
 from PIL import Image
 import torch
 from torchvision.transforms import ToTensor
@@ -84,6 +85,18 @@ class GemNR:
         bottom = top + size
         return image.crop((left, top, right, bottom)).resize((self.W, self.H))
 
+    @staticmethod
+    def normalize_intrinsics(K: np.ndarray, image: Image.Image) -> np.ndarray:
+        """Pixel intrinsics of `image` -> intrinsics normalized by image size, after the center crop of `crop_resize`."""
+        width, height = image.size
+        size = min(width, height)
+        K = np.array(K, dtype=np.float64)
+        K[0, 2] -= (width - size) // 2
+        K[1, 2] -= (height - size) // 2
+        K[:2] /= size
+        return K
+
+
     def edit(
         self,
         ims_pil: Image.Image | list[Image.Image],
@@ -92,11 +105,31 @@ class GemNR:
         reference_pil: Image.Image | None = None,
         edited_anchor_pil: Image.Image | None = None,
         save_intermediate_dirpath: str | None = None,
+        intrinsics: np.ndarray | None = None,
+        extrinsics: np.ndarray | None = None,
     ) -> list[Image.Image]:
+        """
+        intrinsics: optional (N, 3, 3) pixel intrinsics of `ims_pil`.
+        extrinsics: optional (N, 3, 4) or (N, 4, 4) world-to-camera (OpenCV) poses of `ims_pil`.
+        If both are given, they replace DA3 pose estimation (+ refinement) during warping.
+        """
         if isinstance(ims_pil, Image.Image):
             im_pil_list = [ims_pil]
         else:
             im_pil_list = ims_pil
+
+        assert (intrinsics is None) == (
+            extrinsics is None
+        ), "Provide both intrinsics and extrinsics, or neither."
+        if intrinsics is not None:
+            assert len(intrinsics) == len(extrinsics) == len(im_pil_list)
+            intrinsics = np.stack(
+                [
+                    self.normalize_intrinsics(K, im)
+                    for K, im in zip(intrinsics, im_pil_list)
+                ]
+            )
+            extrinsics = np.asarray(extrinsics, dtype=np.float64)
 
         if any(im.size != (self.W, self.H) for im in im_pil_list):
             print(
@@ -159,6 +192,8 @@ class GemNR:
             prompt=edit_text_prompt,
             reference_pil=reference_pil,
             save_intermediate_dirpath=save_intermediate_dirpath,
+            intrinsics=intrinsics[order] if intrinsics is not None else None,
+            extrinsics=extrinsics[order] if extrinsics is not None else None,
         )
 
         return [edited_pil_list[i] for i in order]
@@ -182,8 +217,14 @@ class GemNRSetPipeline:
         edited1_pil,
         reference_pil=None,
         save_intermediate_dirpath=None,
+        intrinsics=None,
+        extrinsics=None,
     ):
-        """Edit each target view conditioned on the anchor image (first in list) and its edit."""
+        """Edit each target view conditioned on the anchor image (first in list) and its edit.
+
+        intrinsics/extrinsics: optional normalized (N, 3, 3) / world-to-camera (N, 3|4, 4)
+        cameras aligned with img_pil_list; if given, DA3 pose estimation is skipped.
+        """
         img1_pil = img_pil_list[0]
         target_views = img_pil_list[1:]
 
@@ -197,11 +238,19 @@ class GemNRSetPipeline:
         inputs = []
 
         for i, img2_pil in enumerate(target_views):
+            # Cameras for (anchor, edited anchor, query)
+            cam_idxs = [0, 0, i + 1]
             warped2_pil, masked2_pil = self.gem_warper.warp_using_DA3(
                 img1_pil,
                 edited1_pil,
                 img2_pil,
                 save_intermediate_dirpath=save_intermediate_dirpath,
+                intrinsics=(
+                    intrinsics[cam_idxs] if intrinsics is not None else None
+                ),
+                extrinsics=(
+                    extrinsics[cam_idxs] if extrinsics is not None else None
+                ),
             )
 
             if reference_pil:
