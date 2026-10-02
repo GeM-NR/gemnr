@@ -39,7 +39,7 @@ class FLUX(ImageEditor):
     def initialize(self, W_inp, H_inp):
         (self.W_inp, self.H_inp) = (W_inp, H_inp)
 
-        login(token=self.token or os.environ["HF_TOKEN"])
+        login(token=self.token or os.environ.get("HF_TOKEN"))
         if self.version == "flux1_kontext":
             self.pipe = FluxKontextPipeline.from_pretrained(
                 "black-forest-labs/FLUX.1-Kontext-dev",
